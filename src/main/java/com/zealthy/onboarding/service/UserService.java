@@ -8,44 +8,35 @@ import com.zealthy.onboarding.entity.User;
 import com.zealthy.onboarding.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
+@Transactional
 public class UserService {
 
     @Autowired
     private UserRepository userRepository;
 
-    // Original registration method
-    public UserResponse registerUser(UserRegistrationRequest request) {
-        if (userRepository.existsByEmail(request.getEmail())) {
-            throw new RuntimeException("User with this email already exists");
-        }
-
-        User user = new User(request.getEmail(), request.getPassword());
-        user.setCurrentStep(1);
-        user = userRepository.save(user);
-        return convertToResponse(user);
-    }
-
-    // ISSUE 2 FIX: Complete user registration with all data
+    // Main production method - Complete user registration
     public UserResponse registerCompleteUser(CompleteUserRequest request) {
-        System.out.println("UserService: Starting complete registration for email: " + request.getEmail());
+        System.out.println("UserService: Starting complete registration for: " + request.getEmail());
         
-        // Check if email already exists
+        // Validate email uniqueness
         if (userRepository.existsByEmail(request.getEmail())) {
             System.err.println("UserService: Email already exists: " + request.getEmail());
             throw new RuntimeException("User with this email already exists");
         }
 
         try {
-            // Create user with all data at once
+            // Create complete user object
             User user = new User();
             user.setEmail(request.getEmail());
-            user.setPassword(request.getPassword());
+            user.setPassword(request.getPassword()); // In production, this should be hashed
             user.setAboutMe(request.getAboutMe());
             user.setStreetAddress(request.getStreetAddress());
             user.setCity(request.getCity());
@@ -56,8 +47,8 @@ public class UserService {
             user.setCreatedAt(LocalDateTime.now());
             user.setUpdatedAt(LocalDateTime.now());
 
-            System.out.println("UserService: Saving user with data - Email: " + user.getEmail() + 
-                             ", AboutMe: " + (user.getAboutMe() != null ? "Yes" : "No") + 
+            System.out.println("UserService: Saving user - Email: " + user.getEmail());
+            System.out.println("UserService: Data - AboutMe: " + (user.getAboutMe() != null ? "Yes" : "No") + 
                              ", Address: " + (user.getStreetAddress() != null ? "Yes" : "No") + 
                              ", Birthdate: " + (user.getBirthdate() != null ? "Yes" : "No"));
 
@@ -66,18 +57,95 @@ public class UserService {
             System.out.println("UserService: User saved successfully with ID: " + user.getId());
             
             return convertToResponse(user);
+            
         } catch (Exception e) {
-            System.err.println("UserService: Error saving complete user: " + e.getMessage());
+            System.err.println("UserService: Error saving user: " + e.getMessage());
             e.printStackTrace();
             throw new RuntimeException("Failed to save user: " + e.getMessage());
         }
     }
 
+    // Check if email exists
+    public Optional<UserResponse> getUserByEmail(String email) {
+        System.out.println("UserService: Checking email existence: " + email);
+        try {
+            Optional<User> userOpt = userRepository.findByEmail(email);
+            if (userOpt.isPresent()) {
+                System.out.println("UserService: Email found: " + email);
+                return Optional.of(convertToResponse(userOpt.get()));
+            } else {
+                System.out.println("UserService: Email available: " + email);
+                return Optional.empty();
+            }
+        } catch (Exception e) {
+            System.err.println("UserService: Error checking email: " + e.getMessage());
+            throw new RuntimeException("Error checking email: " + e.getMessage());
+        }
+    }
+
+    // Get all users for data table
+    public List<UserResponse> getAllUsers() {
+        try {
+            System.out.println("UserService: Fetching all users from database");
+            List<User> users = userRepository.findAll();
+            System.out.println("UserService: Found " + users.size() + " users in database");
+            
+            List<UserResponse> responses = users.stream()
+                    .map(this::convertToResponse)
+                    .collect(Collectors.toList());
+            
+            System.out.println("UserService: Converted to " + responses.size() + " response objects");
+            
+            // Log sample for debugging
+            if (!responses.isEmpty()) {
+                UserResponse first = responses.get(0);
+                System.out.println("UserService: Sample user - ID: " + first.getId() + 
+                                 ", Email: " + first.getEmail() + 
+                                 ", Created: " + first.getCreatedAt());
+            }
+            
+            return responses;
+            
+        } catch (Exception e) {
+            System.err.println("UserService: Error fetching users: " + e.getMessage());
+            e.printStackTrace();
+            throw new RuntimeException("Failed to fetch users: " + e.getMessage());
+        }
+    }
+
+    // Get user by ID
+    public UserResponse getUserById(Long id) {
+        System.out.println("UserService: Finding user by ID: " + id);
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("User not found with ID: " + id));
+        return convertToResponse(user);
+    }
+
+    // Legacy registration method (for backward compatibility)
+    public UserResponse registerUser(UserRegistrationRequest request) {
+        System.out.println("UserService: Legacy registration for: " + request.getEmail());
+        
+        if (userRepository.existsByEmail(request.getEmail())) {
+            throw new RuntimeException("User with this email already exists");
+        }
+
+        User user = new User(request.getEmail(), request.getPassword());
+        user.setCurrentStep(1);
+        user.setCreatedAt(LocalDateTime.now());
+        user.setUpdatedAt(LocalDateTime.now());
+        user = userRepository.save(user);
+        
+        return convertToResponse(user);
+    }
+
+    // Update user step (for legacy step-by-step flow)
     public UserResponse updateUserStep(Long userId, Integer step, UserStepUpdateRequest request) {
+        System.out.println("UserService: Updating user " + userId + " to step " + step);
+        
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        // Update fields based on what's provided
+        // Update fields based on request
         if (request.getAboutMe() != null && !request.getAboutMe().trim().isEmpty()) {
             user.setAboutMe(request.getAboutMe());
         }
@@ -97,64 +165,18 @@ public class UserService {
             user.setBirthdate(request.getBirthdate());
         }
 
-        // Update current step when explicitly advancing
+        // Update step if advancing
         if (step > user.getCurrentStep()) {
             user.setCurrentStep(step);
         }
 
         user.setUpdatedAt(LocalDateTime.now());
         user = userRepository.save(user);
+        
         return convertToResponse(user);
     }
 
-    // ISSUE 1 FIX: Get user by email for email existence check
-    public Optional<UserResponse> getUserByEmail(String email) {
-        System.out.println("UserService: Searching for user with email: " + email);
-        Optional<User> userOpt = userRepository.findByEmail(email);
-        if (userOpt.isPresent()) {
-            System.out.println("UserService: User found with email: " + email);
-            return Optional.of(convertToResponse(userOpt.get()));
-        } else {
-            System.out.println("UserService: No user found with email: " + email);
-            return Optional.empty();
-        }
-    }
-
-    public UserResponse getUserById(Long id) {
-        User user = userRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-        return convertToResponse(user);
-    }
-
-    // ISSUE 4 FIX: Get all users for data table
-    public List<UserResponse> getAllUsers() {
-        try {
-            System.out.println("UserService: Fetching all users from database...");
-            List<User> users = userRepository.findAll();
-            System.out.println("UserService: Found " + users.size() + " users in database");
-            
-            List<UserResponse> responses = users.stream()
-                    .map(this::convertToResponse)
-                    .collect(Collectors.toList());
-            
-            System.out.println("UserService: Converted to " + responses.size() + " user responses");
-            
-            // Log first user for debugging
-            if (!responses.isEmpty()) {
-                UserResponse first = responses.get(0);
-                System.out.println("UserService: First user - ID: " + first.getId() + 
-                                 ", Email: " + first.getEmail() + 
-                                 ", Step: " + first.getCurrentStep());
-            }
-            
-            return responses;
-        } catch (Exception e) {
-            System.err.println("UserService: Error fetching users: " + e.getMessage());
-            e.printStackTrace();
-            throw new RuntimeException("Failed to fetch users: " + e.getMessage());
-        }
-    }
-
+    // Convert User entity to UserResponse DTO
     private UserResponse convertToResponse(User user) {
         try {
             UserResponse response = new UserResponse();
