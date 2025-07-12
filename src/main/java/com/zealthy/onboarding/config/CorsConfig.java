@@ -52,14 +52,15 @@ public class CorsConfig implements WebMvcConfigurer {
     private String[] getAllowedOrigins() {
         // Production-ready allowed origins
         return new String[] {
-            frontendUrl,                                     // From environment variable
-            "http://localhost:3000",                         // Local development
-            "http://localhost:3001",                         // Alternative local port
-            "https://*.vercel.app",                          // Vercel deployments
-            "https://*.netlify.app",                         // Netlify deployments
-            "https://zealthy-onboarding-frontend.vercel.app", // Specific production URL
-            "https://zealthy-frontend.vercel.app",        // Alternative production URL
-            "https://zealthy-onboarding-backend-production.up.railway.app/api/users"
-        };
+        frontendUrl,                                     // From environment variable
+        "http://localhost:3000",                         // Local development
+        "http://localhost:3001",                         // Alternative local port
+        "https://*.vercel.app",                          // Vercel deployments
+        "https://*.netlify.app",                         // Netlify deployments (wildcard)
+        "https://onboardd.netlify.app",                  // 
+        "https://zealthy-onboarding-frontend.vercel.app", // Specific production URL
+        "https://zealthy-frontend.vercel.app",           // Alternative production URL
+        "https://zealthy-frontend-production.up.railway.app" // Keep existing
+    };
     }
 }
