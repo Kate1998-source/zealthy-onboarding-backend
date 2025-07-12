@@ -59,7 +59,7 @@ public class CorsConfig implements WebMvcConfigurer {
             "https://*.netlify.app",                         // Netlify deployments
             "https://zealthy-onboarding-frontend.vercel.app", // Specific production URL
             "https://zealthy-frontend.vercel.app",        // Alternative production URL
-            "https://zealthy-frontend-production.up.railway.app"
+            "https://zealthy-onboarding-backend-production.up.railway.app/api/users"
         };
     }
 }
