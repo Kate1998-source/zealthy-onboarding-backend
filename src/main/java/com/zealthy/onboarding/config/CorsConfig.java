@@ -52,7 +52,7 @@ public class CorsConfig implements WebMvcConfigurer {
     private String[] getAllowedOrigins() {
         // Production-ready allowed origins
         return new String[] {
-        frontendUrl,                                     // From environment variable
+        frontendUrl,                                     // From environment
         "http://localhost:3000",                         // Local development
         "http://localhost:3001",                         // Alternative local port
         "https://*.vercel.app",                          // Vercel deployments
